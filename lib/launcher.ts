@@ -227,12 +227,9 @@ let initFn = async function(configFile: string, additionalConfig: Config) {
           }
           taskResults_.add(result);
           task.done();
-          await createNextTaskRunner();
-          // If all tasks are finished
-          if (scheduler.numTasksOutstanding() === 0) {
-            resolve();
-          }
           logger.info(scheduler.countActiveTasks() + ' instance(s) of WebDriver still running');
+          await createNextTaskRunner();
+          resolve();
         } catch (err) {
           const errorCode = ErrorHandler.parseError(err);
           logger.error('Error:', (err as any).stack || err.message || err);
@@ -245,10 +242,14 @@ let initFn = async function(configFile: string, additionalConfig: Config) {
   };
 
   const maxConcurrentTasks = scheduler.maxConcurrentTasks();
+  const runners: Promise<unknown>[] = [];
   for (let i = 0; i < maxConcurrentTasks; ++i) {
-    await createNextTaskRunner();
+    runners.push(createNextTaskRunner());
   }
   logger.info('Running ' + scheduler.countActiveTasks() + ' instances of WebDriver');
+
+  // Wait for all runners to finish
+  await Promise.all(runners);
 
   // By now all runners have completed.
   // Save results if desired
